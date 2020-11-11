@@ -1,0 +1,1028 @@
+[toc]
+## 1. include
+#### 1. #include 实质  
+预编译的时候copy include头文件的内容到当前行
+#### 2. #include “” 与<> 的区别  
+“”先在当前目录查找有无该头文件，有则包含该目录下的头文件，没有则到系统指定的目录下找该头文件  
+<>直接到系统指定的目录下查找该文件
+#### 3. 头文件中常见的内容  
+宏定义  
+typedef  
+包含别的头文件  
+inline函数定义  
+函数声明  
+struct,union,enum类型定义  
+#### 4. 防止重复#include  
+方案一：#pragma once（部分老编译器不支持）  
+方案二：#ifndef XXX  
+　　　　#define XXX  
+　　　　#endif  
+
+## 2. extern
+#### 1. 变量加extern  
+用于声明某个变量，表示已在其他位置定义了：
+1. 在C文件中定义，h文件中声明，则其他文件include这个h文件，就可以使用这个变量
+2. 在C文件中定义，其他C文件中使用extern声明，就可以使用这个变量。  
+3. `int i;`是声明加定义，只想声明的话必须用extern。这个与声明函数不同。  
+4. 在函数体内部，如果试图初始化一个由extern标记的变量，将引发错误。
+#### 2. 函数加extern
+1. 声明一个外部的函数，和include的作用类似。所以h文件中一般不会声明extern函数。
+#### 3. extern"C"  
+主要作用就是为了能够正确实现C++代码调用其他C语言代码,会指示编译器这部分代码按C语言的进行编译,而不是C+ +的。  
+由于C+ +支持函数重载，因此编译器编译函数的过程中会将函数的参数类型也加到编译后的代码中，而不仅仅是函数名；而C语言并不支持函数重载，因此编译C语言代码的函数时不会带上函数的参数类型，一般只包括函数名。  
+如头文件的写法如下：
+```
+#ifdef __cplusplus  
+extern "C" {  
+#endif  
+  
+/**** some declaration or so *****/  
+  
+#ifdef __cplusplus  
+}  
+#endif
+```
+如果cpp程序调用此头文件，就会强制编译器不要修改你的函数名，实现调用c语言程序。  
+使用方法有：  
+```
+// 声明一条语句
+extern "C" double sqrt(double); 
+
+// 生命一段语句
+ extern "C"  
+ {  
+   double sqrt(double);  
+   int min(int, int);  
+}  
+
+// 声明整个文件
+extern"C"  
+  
+#include <cmath> 
+```
+
+## 3. static
+#### 1. 局部变量
+static修饰的局部变量分配在静态存储区,在初次运行时进行初始化, 且只操作一次，如果不赋初值,编译期会自动赋初值0或空字符(如果没有static，类的数据成员初始化为0，而普通变量初值是不确定的)。  
+可能带来的问题：多线程访问同一个函数，如果函数内修改一个static变量，可能导致数据出错。
+#### 2. 全局变量或函数
+“static”的含义不再是指存储方式，而是指对变量或函数的作用域仅局限于本文件(所以又称内部函数)。(限定变量在一个编译单元内，一个编译单元就是指一个cpp和它包含的头文件)。对于外部(全局)变量,不论是否有static限制,它的存储区域都是在静态存储区,生存期都是全局的。
+#### 2. 数据成员和成员函数
+* static修饰数据成员和成员函数，表示变量或函数属于类，而不是对象。因此既可以使用对象名访问，也可以使用类名访问。
+* 静态数据成员和普通数据成员一样遵从public,protected,private访问规则  
+* 普通的成员函数一般都隐式传入this指针，静态成员函数不需要，因此静态成员函数的速度会有少许的增长
+* 静态成员函数不能访问非静态成员函数和非静态数据成员
+* 在设计类的多线程操作时,由于POSIX库下的线程函数pthread_create()要求是全局的,普通成员函数无法直接做为线程函数,可以考虑用Static成员函数做线程函数.
+* static只能出现在类内部的声明语句，类内部可以有自己类类型的指针成员或static成员。如果static成员在类内初始化了，最好也要在外部定义一下，因为用此成员的引用或指针时需要寻找它的定义语句。
+```
+class Bar {
+    static Bar m1;    // 正确
+    Bar *m2;          // 正确
+    Bar m3;           // Bar在定义前是不完全类型
+    static const int val = 1;  // 类内初始化
+}
+const int Bar::val;   // 类外定义
+```
+
+## 4. volatile
+#### 1. 作用
+volatile修饰变量，会禁止编译器对访问该变量的代码进行优化。  
+变量可以被某些编译器未知的因素更改，比如：操作系统、硬件或者其它线程等。当要求使用volatile声明的变量的值的时候，系统总是重新从它所在的内存读取数据，而且读取的数据立刻被保存。  
+比如访问的变量没有volatile修饰，如果它前面的指令刚刚从该处读取过数据。访问寄存器要比访问内存要块，因此CPU会优先访问该数据在寄存器中的存储结果，但是内存中的数据可能已经发生了改变，而寄存器中还保留着原来的结果。
+#### 2. volatile指针
+和 const 修饰词类似，const有常量指针和指针常量的说法，volatile 也有相应的概念：
+1. `volatile int*`表示数据是volatile的
+2. `int* volatile`表示指针是volatile的
+3. 可以把一个非volatile int赋给volatile int，但是不能把非volatile对象赋给一个volatile对象。
+4. 一个参数可以即是const又是volatile的吗？可以，一个例子是只读状态寄存器，是volatile是因为它可能被意想不到的被改变，是const告诉程序不应该试图去修改他。
+
+## 5. const
+#### 1. const指针
+1. `const int*`和`int const*`表示( 指针认为)指向的对象是常量，但是实际指向的不一定是常量，可能是变量，只是不能通过这个指针修改。
+2. `int* const`表示指针本身是常量，初始化后不能再指向其他地址。
+3. `*`前有const表示指向的变量是常量，`*`后又const表示指针本身是常量。
+4. 不能用普通指针指向常量
+#### 2. const引用
+1. const引用所指向的对象如果不是const的，则会创建一个临时变量
+```
+int i = 22;
+const int temp = i;
+const int & r1 = temp;
+```
+2. 不能用普通引用指向常量
+#### 3. const与函数
+1. `const int fun();`：返回值是常量。
+2. `void fun(const int val);`：函数内不会修改val的值
+3. `void fun(int val) const;`： 表示const成员函数，表示函数不会修改对象的数据成员，且只能调用const成员函数。实质是修饰this，this本身是一个指针常量，再经过const修饰后变为指向常量的指针常量，因此不能修改this指向的对象。  
+const成员函数返回*this，返回类型为常量引用。P247  
+const成员函数和普通成员函数构成重载，因为const修饰的是*this，this是形参。
+4. `const classtype a;`：对象a只能调用const成员函数。非const对象会优先调用非const成员函数，但是如果fun函数只有const函数，那么非const对象也会调用const成员函数。  
+5. const修饰形参（顶层const），无法构成重载函数
+```
+void fun(int* val);
+void fun(int* const val);   // 重复声明
+```
+底层const构成重载：
+```
+void fun(int& val);
+void fun(const int& val);   // 重载
+```
+
+## 6. new和malloc
+1. new分配内存按照数据类型进行分配，malloc分配内存按照大小分配；
+2. new不仅分配一段内存，而且会调用构造函数，但是malloc则不会。new的实现原理？但是还需要注意的是，之前看到过一个题说int* p = new int与int* p = new int()的区别，因为int属于Cpp内置对象，不会默认初始化，必须显示调用默认构造函数，但是对于自定义对象都会默认调用构造函数初始化。翻阅资料后，在C++11中两者没有区别了，自己测试的结构也都是为0；
+3. new返回的是指定对象的指针，而malloc返回的是void*，因此malloc的返回值一般都需要进行类型转化；
+4. new是一个操作符可以重载，malloc是一个库函数；
+5. new分配的内存要用delete销毁，malloc要用free来销毁；delete销毁的时候会调用对象的析构函数，而free则不会；
+6. malloc分配的内存不够的时候，可以用realloc扩容。扩容的原理？new没用这样操作；
+7. new如果分配失败了会抛出bad_malloc的异常，而malloc失败了会返回NULL。因此对于new，正确的姿势是采用try…catch语法，而malloc则应该判断指针的返回值。为了兼容很多c程序员的习惯，C++也可以采用new nothrow的方法禁止抛出异常而返回NULL；
+8. new和new[]的区别，new[]一次分配所有内存，多次调用构造函数，分别搭配使用delete和delete[]，同理，delete[]多次调用析构函数，销毁数组中的每个对象。而malloc则只能sizeof(int) * n；
+9. malloc在堆上分配的内存块，new申请的内存在自由存储区上；自由存储是C++中通过new与delete动态分配和释放对象的抽象概念，而堆（heap）是C语言和操作系统的术语，是操作系统维护的一块动态分配内存。几乎所有的Cpp编译器默认使用堆来实现自由存储，但也可以通过重载操作符，改用其他内存来实现自由存储，例如全局变量做的对象池。（在Cpp中，内存区分为5个区，分别是堆、栈、自由存储区、全局/静态存储区、常量存储区）
+10. 内存泄漏对于malloc或者new都可以检查出来的,区别在于new可以指明是那个文件的那一行,而malloc没有这些信息｡
+11. 如果不够可以继续谈new和[malloc的实现](https://blog.csdn.net/maybe3is3u5/article/details/51984744)，空闲链表，分配方法(首次适配原则，最佳适配原则，最差适配原则，快速适配原则)。delete和free的实现原理，free为什么知道销毁多大的空间？
+12. new和delete调用malloc和free实现。
+13. `int *p = new (nothrow) int;` 如果分配失败，p为NULL；如果没有nothrow，会抛出`std::bad_alloc`异常。
+14. const对象可以delete
+```
+const int *p = new const int(1);
+delete p;
+```
+
+## 7. 继承和多态
+#### 1. 多态的实现
+1. 静态多态 通过重载和模板实现，在编译的时候确定
+2. 动态多态通过虚函数和继承实现，动态绑定在运行时确定：  
+1）基类有虚函数  
+2）基类指针指向派生类的对象，用该指针调用虚函数  
+2.1 基类指针在调用成员函数(虚函数)时，就会去查找该对象的虚函数表。虚函数表的地址在每个对象的首地址。查找该虚函数表中该函数的指针进行调用。   
+2.2 可以把虚函数表指针理解为对象的一个数据成员，存放在对象的首地址，指向一个数组，数组的内容是所有虚函数的指针。Cpp内部为每一个类维持一个虚函数表，所以同一个类的所有对象的虚函数表指针指向同一个虚函数表。在类设计的时候，虚函数表直接从基类也继承过来，如果覆盖了其中的某个虚函数，那么虚函数表的指针就会被替换，因此可以根据指针准确找到该调用哪个函数。如果派生类有了新的虚函数，就往这个虚函数表后面追加。   
+2.3 如果要调用对象的析构函数，就需要将该对象的析构函数定义为虚函数，销毁时通过虚函数表找到对应的析构函数。   
+2.4 基类指针调用派生类重载函数时，派生类重载函数的默认参数是基类的默认参数。  
+2.5 派生类中：函数会隐藏基类的同名非虚函数，无论参数是否相同；函数会覆盖基类中同名且同参数的虚函数。因此，如果需要重载基类的函数，必须要将该基类函数声明为虚函数。
+
+#### 2. 纯虚函数和抽象类
+1. 纯虚函数是只有声明，没有实现的成员函数
+```
+virtual void func(int i)=0;
+```
+2. 有纯虚函数的类是抽象类。  
+抽象类不能使用new出对象，只有实现了这个纯虚函数的子类才能new出对象。  
+
+#### 3. 派生说明符
+对基类成员的访问权限只与基类中的访问说明符有关；派生访问说明符的目的是控制派生类的用户对基类成员的访问权限。
+继承方式 | 基类public成员 | 基类protected成员 | 基类private成员
+|:-----:|:-----:|:-----:|:-----:|
+| public继承 | public | protected | 不可见 |
+| protected继承 | protected | protected | 不可见 |
+| private继承 | private | private | 不可见 |
+使用using可以改变派生类成员的访问属性
+```
+class Base {
+protected:
+    int n;
+}
+class Derived : private Base {
+public:
+    using Base::n;  // 将私有继承来的n改为了public访问
+}
+```
+只有公有继承，用户代码才能使用派生类向基类的转换；无论什么继承，派生类的成员函数和友元都可以使用派生类向基类的转换——对于某个节点，类型转换的可访问性和共有成员的可访问性一致。
+
+#### 4. 派生类函数
+1. 对象创建过程是先基类，后派生类；销毁过程是先派生类，后基类。
+2. 构造函数和运算符要显式调用基类成员函数，析构函数不需要，销毁时基类部分自动销毁
+```
+class D : Base {
+    public:
+    D(const D& d) : Base(d) {}
+    D(D&& d) : Base(std::move(d)) {}
+    D& operator=(const D& rhs) {
+        Base::operator=(rhs);
+        return *this;
+    }
+}
+```
+3. 当一个基类构造函数含有默认实参时，实参并不会继承，而是获得多个继承的构造函数，其中每个构造函数分别省略一个含有默认实参的形参。（P558）
+
+## 8. 指针
+#### 1. 指针和引用的区别
+1. 指针保存的是所指对象的地址，引用是所指对象的别名，指针需要通过解引用间接访问，而引用是直接访问；
+2. 指针可以改变地址，从而改变所指的对象，而引用必须从一而终；
+3. 引用在定义的时候必须初始化，而指针则不需要；
+4. 指针有指向常量的指针和指针常量，而引用没有常量引用；
+5. 指针更灵活，用的好威力无比，用的不好处处是坑，而引用用起来则安全多了，但是比较死板。
+#### 2. 指针和数组
+1. `int *p1[n];`和`int (*p2)[n];`  
+1)指针数组：p1是一个数组，数组的元素是int*类型的   
+2)数组指针：(*p2)是一个数组，元素是int类型的，长度为n;p2是一个指针，指向一个内容int[n]的数组。  
+3)把二维数组转化为数组指针:  
+`int matrix[m][n];`  
+`int (*p2)[n] = matrix;`  
+`int num = (*(p2 + x))[y]`  
+二维数组通过指针访问：  
+`int *p = matrix[0];`  
+`int num = *(P + x*m + y);`  
+把指针数组转换为二级指针：  
+`int *strs[2] = {"string1", "string2"};`  
+`int **bb = strs;`  
+因此，二维数组传参时最好用一级指针，指针数组必须用二级指针。前者是存储数组的数组，后者是存储指针的数组。  
+4)p1是数组，所以可以使用数组列表直接初始化，p2是指针，只能通过赋值初始化。  
+2. 数组作为函数参数  
+一个一维int数组的数组名实际上是一个int* const 类型；  
+一个二维int数组的数组名实际上是一个int (*const p)[n];  
+数组名做参数会退化为指针，除了sizeof  
+3. 负数下标
+```
+// P108
+int ia[8];
+int *p = &ia[2];
+int k = p[-2];      // 对应ia[0]
+```
+4. 使用范围for访问多维数组  
+除了最内层的循环外，其他所有循环的控制变量都应该是引用类型。（P114）
+
+5. 动态数组
+```
+int *p = new int[3];
+delete [] p;
+unique_ptr<int[]> u(new int[10]);   // 使用unique_ptr管理动态数组
+shared_ptr<int> sp(new int[10], [](int *p){delete[] p;});  // shared_ptr管理动态数组必须提供删除器
+// 并且shared_ptr不支持下标运算符，也不支持指针的(+-)算术运算，必须使用get获得内置指针再访问元素。
+```
+
+#### 3. 智能指针
+1. 实现原理  
+1.1 构造函数中计数初始化为1；
+1.2 拷贝构造函数中计数值加1；
+1.3 赋值运算符中，左边的对象引用计数减一，右边的对象引用计数加一；
+1.4 析构函数中引用计数减一，包括函数结束，栈区域释放的过程；
+1.5 在赋值运算符和析构函数中，如果减一后为0，则调用delete释放对象。
+2. 类型  
+`shared_ptr`允许多个指针指向相同的对象，`unique_ptr`独占所指向的对象，`weak_ptr`一般指向shared_ptr指向的对象，但不改变引用计数
+3. 用法  
+```
+shared_ptr<T> sp = make_shared<T>(args);  // args是类T的初始化参数
+shared_ptr<T> p(q);   // q也是shared_ptr类型的
+shared_ptr<int> p = new int(1); // 错误，构造函数是explicit的，必须直接初始化
+unique_ptr<T> p(new T(args));    // 不能复制，不能拷贝，只能用new初始化
+p.reset(q);     //只用reset赋值
+// 例外：可以拷贝一个即将被销毁的unique_ptr
+unique_ptr<int> clone(int p) {
+    unique_ptr<int> ret(new int (p));
+    return ret;
+}
+weak_ptr<T> w(p);  // weak_ptr只能用shared_ptr直接初始化
+shared_ptr<int> np = w.lock(); // weak_ptr不能直接访问对象，必须用lock判断对象是否存在，然后返回一个shared_ptr
+```
+循环引用问题
+```
+//share_ptr可能出现循环引用，从而导致内存泄露
+class A
+{
+public:
+    share_ptr<B> p;
+};
+
+class B
+{
+public:
+    share_ptr<A> p;
+}
+
+int main()
+{
+    while(true)
+    {
+        share_prt<A> pa(new A()); //pa的引用计数初始化为1
+        share_prt<B> pb(new B()); //pb的引用计数初始化为1
+        pa->p = pb; //pb的引用计数变为2
+        pb->p = pa; //pa的引用计数变为2
+    }
+    //假设pa先离开，引用计数减一变为1，不为0因此不会调用class A的析构函数，因此其成员p也不会被析构，pb的引用计数仍然为2；
+    //同理pb离开的时候，引用计数也不能减到0
+    return 0;
+}
+
+/*
+** weak_ptr是一种弱引用指针，其存在不会影响引用计数，从而解决循环引用的问题
+*/
+```
+
+#### 4. 函数指针
+```
+int (*func)(int val);
+```
+1. 调用时可以不解引用  
+```
+func(2);
+(*func)(2);   // 二者等价
+```
+2. 函数指针在赋值时，形参类型和返回类型必须匹配  
+3. 函数作为形参时，会隐式转换为指针
+```
+void func2(int func(int));
+void func2(int (*func)(int));  // 二者等价
+```
+4. 返回指向函数的指针 （P223）
+
+## 9. 类型转换
+1. const_cast用于将const变量转为非const
+2. static_cast用的最多，对于各种隐式转换，非const转const，void*转指针等,static_cast能用于多态向上转化，如果向下转能成功但是不安全，结果未知；
+3. dynamic_cast用于动态类型转换。只能用于含有虚函数的类，用于类层次间的向上和向下转化。只能转指针或引用。向下转化时，如果是非法的对于指针返回NULL，对于引用抛异常。要深入了解内部转换的原理。
+4. reinterpret_cast几乎什么都可以转，比如将int转指针，可能会出问题，尽量少用；
+5. 为什么不使用C的强制转换？C的强制转换表面上看起来功能强大什么都能转，但是转化不够明确，不能进行错误检查，容易出错。
+
+
+## 10. 内存对齐
+1. 从0位置开始存储；
+2. 变量存储的起始位置是该变量大小的整数倍；
+3. 结构体总的大小是其最大元素的整数倍，不足的后面要补齐；
+4. 结构体中包含结构体，从结构体中最大元素的整数倍开始存；
+5. 如果加入pragma pack(n)，取n和变量自身大小较小的一个。
+
+## 11. 构造函数和析构函数
+### 1. 初始值列表
+1. 成员初始化顺序与类定义中出现的顺序一致，与初始化列表中的顺序无关。
+2. 如果成员是const、引用，或者未提供默认构造函数的类类型，必须通过初始值列表进行初始化。
+3. 尽量使用初始值列表进行初始化，因为在执行构造函数体之前，没有在初始值列表中的数据成员也会初始化。
+
+### 2. 默认构造函数
+1. 如果没有声明任何构造函数，编译器会自动生成默认构造函数（称为合成构造函数），也就是参数为空的构造函数。
+2. 类内的内置类型（如int）或复合类型（指针和引用）都有类内初始值时，才能正确生成默认构造函数。数据成员如果包含其他对象，且没有默认构造函数，也没有类内初始化，也不能生成默认构造函数。
+3. 如果有非空参数的构造函数，则不会生成默认构造函数。如果想生成默认构造函数，则使用default。拷贝构造函数和拷贝赋值运算符同理。
+```
+class example {
+    example() = default;
+    example(const example&) = default;  // 类内声明是内联的
+    // 注意自己定义的时候，参数必须为引用， 否则会创建临时对象，调用拷贝构造函数，无限循环。。。
+    example& operator=(const example&);
+    ~example() = default;
+};
+example& example::operator=(const example&) = default; // 在类外声明是非内联的。
+```
+如果想阻止生成，可以使用delete；并且必须在类定义时指出。
+```
+class example {
+    example() = default;
+    example(const example&) = delete;
+    example& operator=(const example&) = delete;
+    ~example() = default;
+};
+```
+4. 注意使用默认构造函数定义一个对象时不要加括号；创建临时对象时需要加括号。
+```
+example obj;  // 正确
+example obj2();  // 错误：声明了一个函数
+```
+5. 拷贝赋值运算符：为防止自身赋值给自身，应该：
+```
+HasPtr& HasPtr::operator=(const HasPtr &rhs) {
+    auto newp = new string(*rhs.ps);
+    delete ps;
+    ps = newp;  // 从右侧运算对象拷贝到本对象
+    i = rhs.i;
+    return *this;  // 返回本对象
+}
+```
+或者
+```
+HasPtr& HasPtr::operator=(HasPtr rhs) {
+    // 先把实参拷贝到局部对象rhs中
+    // swap需要自己定义，只需要交换对象中的变量和指针，不需要交换动态内存中的内容。
+    swap(*this, rhs);
+    // 此时rhs中的指针指向原对象中的内存
+    return *this;  // 返回本对象
+    // rhs销毁，析构函数delete了原来的内存。
+}
+```
+
+### 3. 转换构造函数 
+1. 接受一个实参的构造函数，同时也定义了转换为此类型的隐式转换机制。
+```C
+Sales_data::combine(Sales_data&);
+Sales_data item;
+// 显示定义string临时对象，隐式调用Sales_data(string)将string转换为Sales_data类型。
+item.combine(string("1234"));
+// 隐式转换为string，显示构造Sales_data
+item.combine(Sales_data("1234"));
+```
+2. <span id="explicit">explicit</span> 
+* 2.1 阻止隐式转换：对于接收一个实参的构造函数，explicit会抑制隐式转换的功能。
+* 2.2 阻止拷贝初始化：直接初始化和拷贝初始化只是写法不同，都是调用拷贝构造函数或转换构造函数。
+* 因此explicit只用来修饰接收一个实参的构造函数。explicit只能出现在类内声明。
+```
+// 类内定义explicit构造函数Sales_data(string)
+Sales_data item1(string("12");     // 正确：直接初始化
+Sales_data item2 = string("123");  // 错误：无法拷贝初始化
+item.combine(static_cast<Sales_data>(string("32")); // 正确：强制类型转换。
+```
+```
+class Foo
+{
+public:
+    int i_;
+    Foo() : i_(1) {}
+    Foo(int i) : i_(i) {}
+    Foo(const Foo& t) {
+        i_ = 2;
+    }
+    Foo(const Foo&& t) {
+        i_ = 6;
+    }
+    Foo& operator=(const Foo& t) {
+        i_ = 3;
+    }
+    Foo& operator=(const Foo&& t) {
+        i_ = 7;
+    }
+    ~Foo() {}
+};
+
+int main() {
+    Foo tt(4);       // tt.i_为4，调用Foo(int i)
+    Foo tt2(tt);     // tt2.i_为2,调用拷贝构造函数Foo(const Foo& t)
+    Foo tt3 = 5;     // tt3.i_为5,调用隐式转换，和Foo tt3(5)效果相同。
+    Foo tt4 = tt;    // tt4.i_为2,和Foo tt4(tt)效果相同。
+    // 说明在构造时，=运算符不起作用，而是构造函数的拷贝初始化形式，或者说只是写法不同。explicit可以阻止这种写法。
+    return 0;
+}
+```
+
+### 4. allocator和construct
+```
+allocator<string> alloc;
+auto const p = alloc.allocate(n);  // 分配n个未初始化的string的内存
+alloc.construct(p++, 3, 'c')  // 把第一个string初始化为ccc，并使指针指向下一个对象
+alloc.destroy(--p);  // 执行析构
+auto q = uninitialized_copy(v.begin(), v.end(), p); // 将vector<string> v中的元素复制到未构造的p中
+uninitialized_fill(q, q + 2, string("aa"));  // 构造多个元素  
+alloc.deallocate(p, n);  // 释放内存
+```
+### 5. 右值引用和std::move()
+1. 左值持久，右值短暂：右值是临时对象，没有用户，即将被销毁。
+2. 左值表达式包括：返回左值的函数，赋值、下标、解引用、前置递增减运算符。右值表达式包括：算术、关系、位、后置递增减运算符。
+3. std::move()用于返回一个右值引用。使用时必须加`std::`
+```
+int i = 42;
+int &&r = i;  // 错误，i是左值
+int &&r = i*2;  // 正确，右值
+int &l = i*2;   // 错误：不能把右值绑定到左值引用上。
+const int &ll = i*2;  // 正确：const引用可绑定右值。
+int &&rr = std::move(i);  // 正确：i中的值已无效
+```
+
+### 6. 移动构造函数
+1. 移动比拷贝性能高得多，但原对象会失效。不可拷贝的类型也可以移动，如`unique_ptr`。移后源对象不需要被销毁，但可能被其他操作销毁，因此将移后源对象置于默认初始化对象相同的状态。
+```
+// 把*elem对象移动到新的内存中
+auto dest = alloc.allocate(capacity);  // 分配内存
+alloc.construct(dest, std::move(*elem));
+alloc.destroy(elem);
+alloc.deallocate(elem, 1);
+
+// 移动构造函数
+StrVec::StrVec(StrVec &&s) noexcept   // 移动操作不能抛出异常，否则新对象未构造完，旧对象已改变。
+  : elements(s.elements), first_free(s.first_free)
+  {
+  // 移动构造函数不分配任何新内存，而是接管s的内存。移后源会被销毁，执行析构，因此必须赋值nullptr，否则会释放新对象元素指向的内存
+      s.element = s.first_free = nullptr;
+  }
+
+// 移动赋值运算符
+StrVec &StrVec::operator=(StrVec &&rhs) noexcept
+{
+    if (this != &rhs) {
+        free();                 // 释放*this中元素指向的内存
+        s.element = rhs.element;
+        first_free = rhs.first_free;
+        rhs.element = rhs.first_free = nullptr;
+    }
+    return *this;
+}
+
+Foo x;  // 如果Foo没有定义移动构造函数，只定义了拷贝构造函数
+Foo z(std::move(x));   // 会执行拷贝构造函数，把Foo&&转换为Foo&
+
+StrVec vec;   // 如果StrVec定义了左值引用和右值引用版本的push_back()，参数为string
+string s = "aa";
+vec.push_back(s); // 调用左值引用版本
+vec.push_back("bb");  // 调用右值引用版本，因为创建了临时string对象
+
+// make_move_iterator()用于将普通迭代器转换为移动迭代器
+auto last = uninitialized_copy(make_move_iterator(begin()), make_move_iterator(end()), first);
+
+```
+2. 引用限定符  
+问题：
+```
+string s1("fd"), s2("as");
+auto n = (s1 + s2).find('a');   // s1+s2生成了临时对象，然后对右值调用了find();
+s1 + s2 = "wow";    // 对右值赋值。
+```
+解决：
+```
+class Foo{
+    Foo &operator=(const Foo &rhs) &;  // 限制只能向可修改的左值赋值 最后的&为引用限定符
+    sorted() &&                   // 可被右值调用的函数
+    {
+        sort(data.begin(), data.end());
+        return this;
+    }
+}
+// 其他函数
+```
+
+### 7. 析构函数
+1. 析构函数体自身并不直接销毁成员，成员是在析构函数体之后隐含的析构阶段中被销毁的。在整个对象销毁过程中，析构函数体是作为成员销毁步骤之外的另一部分进行的。因此，空的析构函数和默认的合成析构函数一样，都可以销毁成员，但不会delete指针成员指向的动态内存中的对象。
+2. 如果一个类需要定义析构函数，那么几乎肯定需要定义拷贝构造函数和拷贝赋值运算符。反之亦然。因为如果需要定义析构函数，一般就需要delete指针成员，而合成的拷贝构造函数和拷贝赋值运算符只会将指针复制，而不会重新构造一个对象。
+3. 析构函数能抛出异常吗？  
+(1) C++标准指明析构函数不能、也不应该抛出异常。Cpp异常处理模型最大的特点和优势就是对Cpp中的面向对象提供了最强大的无缝支持。那么如果对象在运行期间出现了异常，Cpp异常处理模型有责任清除那些由于出现异常所导致的已经失效了的对象(也即对象超出了它原来的作用域)，并释放对象原来所分配的资源， 这就是调用这些对象的析构函数来完成释放资源的任务，所以从这个意义上说，析构函数已经变成了异常处理的一部分。  
+(2) 如果析构函数抛出异常，则异常点之后的程序不会执行，如果析构函数在异常点之后执行了某些必要的动作比如释放某些资源，则这些动作不会执行，会造成诸如资源泄漏的问题。  
+(3) 通常异常发生时，cpp的机制会调用已经构造对象的析构函数来释放资源，此时若析构函数本身也抛出异常，则前一个异常尚未处理，又有新的异常，会造成程序崩溃的问题。  
+(4) 如果析构函数需要执行某个可能抛出气场的操作，则该操作应该被放置在一个try语句块中，并且在析构函数内部得到catch处理
+4. 基类的析构函数都应该定义为虚函数
+
+## 12. 其他修饰符
+### 1. constexpr
+由编译器来验证变量是否是一个常量表达式
+```
+constexpr int mf = 20;
+constexpr int limit = mf + 1;
+constexpr int sz = size();     // 只有size()是一个constexpr函数时才是一条正确的语句
+```
+constexpr修饰指针是，表示指针本身是常量
+```
+int* const ptr = NULL;
+constexpr int* ptr = NULL;   // 这两个一样
+```
+字面值常量类(P267)(待补充)
+### 2. typedef和using
+类型别名
+```
+typedef double *dp;   // dp相当于double*
+using dp2 = dp;       // dp2相当于dp
+```
+### 3. decltype
+推断变量类型
+```
+decltype(f()) sum = x;  // sum的类型是f()的返回类型。
+```
+### 4. constexpr
+用于修饰函数，表示返回值是一个字面值常量
+约定返回值和形参是字面值类型，但不是强制，因此constexpr函数不一定返回常量表达式。  
+constexpr函数被隐式地指定为内联函数。  
+
+### 5. inline
+内联函数只是向编译器发出一个请求，编译器可以选择忽略这个请求。
+
+### 6. assert(expr)函数和NDEBUG
+assert是一种预处理宏，类似内联函数。如果expr为假，输出信息并终止程序；如果为真，什么都不做。  
+1. assert不需要提供using声明，因为是预处理器管理。  
+2. 如果定义了NDEBUG，则忽略assert
+```
+g++ -D NDEBUG main.c  // 相当于在文件头部 #define NDEBUG
+```
+```
+#ifndef NDEBUG
+    cerr << __func__ << __FILE__ << __LINE__ << __TIME__ << __DATE__;
+    // 分别表示出错的函数名，文件名，行号，时间，日期
+#endif
+```
+### 7. mutable
+可变数据成员，const对象里的可变成员，const成员函数可以修改的数据成员。
+
+### 8. friend
+友元不是类的成员，不受访问控制限定符约束，也不是函数声明或定义。仅仅指定了访问权限。  
+友元不存在传递性，不能继承。
+### 9. explicit
+见[11.3](#explicit)
+
+### 10. noexcept
+
+### 11. final
+禁止继承
+
+### 13. override
+显示说明覆盖基类的虚函数。当子类声明了参数不同的函数，没有成功覆盖基类虚函数时，override会让编译器进行提示。
+
+### 14. typename
+显示说明后面的名字是一个类型
+```
+template <typename T>
+typename T::value_type top(T& c) {
+    return typename T::value_type();   // 显示说明::后面是个类型。不能用class，虽然二者大部分情况等价。
+}
+```
+
+## 13. lambda表达式和bind函数
+1. lambda表达式
+```
+[capture list] (parameter list) -> return type { function body }
+```
+[=]表示隐式值捕获，自动推断用到的变量  
+[&]表示隐式引用捕获，自动推断用到的变量  
+混合使用：
+```
+[&, c](..){}   // c值捕获，其他引用捕获
+[=, &os](..){}  // os引用捕获，其他指捕获
+// &或=必须放在第一个位置
+```
+如果值拷贝的变量需要被改变，需要加mutable关键字：
+```
+int v1 = 42;
+auto f = [v1] () mutable {return ++v1;}
+v1 = 0;
+auto j = f();   // j为43；如果是引用捕获，则j为1：说明值捕获时，函数声明时就已经将值传入函数了
+```
+2. 函数对象  
+lambda表达式是函数对象
+```
+class PrintString {
+public:
+    PrintString(ostream &o = cout, char c ' ');
+    void operator() (const string &s) const {
+        os << s << sep;
+    }
+private:
+    ostream &os;
+    char sep;
+}
+```
+lambda表达式值捕获时会建立对应的数据成员，同时创建构造函数。lambda表达式产生的类不含默认构造函数、赋值运算符和默认析构函数。  
+函数表 P511
+3. bind函数  
+```c
+auto newCallable = bind(callable, arg_list);
+```
+用来改变函数参数个数   
+例如：
+```c
+using std::placeholders::_1         // 使用_1前必须声明
+using namespace std::placeholders;  // 更方便的做法：使用所有的placeholders
+auto g = bind(f, a, b, _2, c, _1);    // g(_1, _2)
+g(X, Y);              // 两者调用等价
+f(a, b, Y, c, X);     // 两者调用等价
+sort(v.begin(), v.end(), bind(smaller, _2, _1))  // 反向排序
+```
+## 14. 类的类型转换运算符
+用于将类类型转换为其他类型
+```
+class SmallInt {
+public:
+    SmallInt(int i = 0) : val(i) {}
+    operator int() const {return val;}
+private:
+    int val;
+}
+SmallInt si;
+si = 4;
+si + 3;   // 将si隐式转换为int，应该尽量避免隐式转换
+
+class SmallInt {
+public:
+    SmallInt(int i = 0) : val(i) {}
+    explicit operator int() const {return val;} // 禁止隐式转换
+private:
+    int val;
+}
+SmallInt si;
+si = 4;
+si + 3;      // 错误
+static_cast<int>(si) + 3; //正确
+if (si == 4) {}  // 例外：判断、逻辑运算会执行隐式转换
+```
+
+## 15. 模板
+1. 函数模板使用时不需要提供模板类型，而是根据实参推断类型（必要时可以提供显式模板实参，如返回一个模板类型时，无法推断返回的类型P604）；类模板实例化时必须提供显式模板实参。类模板的名字不是类型名，类模板+模板参数才是类型名。
+2. 函数模板的定义通常放在头文件中，因为编译器需要掌握函数模板才能实例化一个版本。
+3. 类模板的成员函数和函数模板一样，在使用时才实例化。
+4. 一般情况下，友元类如果是模板类型，则只能声明一种类型为友元，如果需要声明所有类型，可以在友元类前加模板声明，如`template <typename T> friend class Pal2;`。（普通的是`frend class Pal<C>;`）
+5. 类模板的类型别名
+```
+template<typename T> using twin = pair<T, T>;
+twin<string> authors;   // authors为pair<string, string>
+
+template<typename T> using partNo = pair<T, int>;
+partNo<string> authors;   // authors为pair<string, int>
+```
+6. 类模板的static数据成员：
+类模板的每一个实例都有一个独有的static对象，因此数据成员也要定义为模板
+```
+template<typename T>
+int Foo<T>::ctr = 0;    // ctr在类中的声明为static int ctr;
+```
+7. 成员函数模板不能是虚函数。成员模板和类模板各自有自己的模板参数。
+8. 避免多个文件实例化同一个模板，可以用显示实例化
+```
+// 文件1  显式将模板实例化
+template int class Blob<string>;   // 实例化定义
+template class Blob<string>;       // 实例化定义
+
+// 文件2
+extern template class Blob<string>;    // 实例化声明
+extern template int compare(int, int); // 实例化声明
+```
+9. 可变参数函数模板
+```
+template <typename T, typename... Args>  // 模板参数包
+void foo(T t, Args&... rest){            // 函数参数包
+// Args和args是根据调用时的实参数目和类型进行实例化的
+    cout << sizeof...(Args) << sizeof...(args) << endl;  // 类型参数数目和函数参数数目
+}
+
+// 递归实现
+template<typename T>
+ostream &print(ostream&os, const T &t) {
+    return os << t;        // 没有参数包的版本
+}
+template<typename T， typename... Args>
+ostream &print(ostream&os, const T &t, const Args&... rest) {
+    os << t << ", ";        // 有参数包的版本
+    return print(os, rest...);   // 递归调用，打印其他参数
+    // 此处rest后加...称为包扩展，即展开为多个参数。
+    // print(os, f(rest)...);   // 包扩展，相当于print(os, f(i), f(s), f(42));
+}
+print(cout, i, s, 42);   // 调用2次有参数包的版，1次没有参数包的版本。
+// 最后一次调用，两个版本都符合，但是没有参数包的版本更特例化。
+
+// 转发：将原参数的类型和值原封不动地移交出去，使用std::forward实现
+template<class... Args>
+inline void StrVec::emplace_back(Args&&... args) {
+    chk_n_alloc();    // 检查内存是否够用，不够则重新分配
+    alloc.construct(first_free++, std::forward<Args>(args)...);
+}
+svec.emplace_back(10, 'c');   // 调用alloc.construct(first_free++, std::forward<int>(10), std::forward<int>('c'));
+```
+
+
+## n. 其他
+### 1. 变量类型
+#### 1. float和double  
+1. 范围  
+（浮点）数值 = 尾数 × 2 ^ 指数，（附加正负号）  
+float：
+
+1bit（符号位） | 8bits（指数位） | 23bits（尾数位） |
+|:-----:|:-----:|:-----:|
+
+double：
+
+1bit（符号位） | 11bits（指数位） | 52bits（尾数位） |
+|:-----:|:-----:|:-----:|
+
+float的范围为-2^128 ~ +2^128，也即-3.40E+38 ~ +3.40E+38；double的范围为-2^1024 ~ +2^1024，也即-1.79E+308 ~ +1.79E+308。
+
+2. [精度](https://www.cnblogs.com/helloaworld/p/5419017.html)  
+float：2^23 = 8388608，一共七位，这意味着最多能有7位有效数字，但绝对能保证的为6位，也即float的精度为6~7位有效数字；  
+double：2^52 = 4503599627370496，一共16位，同理，double的精度为15~16位。  
+
+#### 2. 变量和数值表示  
+1. 转义字符：\x后跟1个或多个十六进制数，或者\后跟最多3个8进制数。（C++ primer P37）  
+2. 函数体外部的变量默认初始化为0，函数体内部的不初始化。  
+3. 变量名不能出现连续两个下划线，不能以下划线接大写字母开头  
+4. 一般变量小写字母开头，函数名大写字母开头  
+5. 作用域内（如函数内）可重复定义一个与外部作用域重名的变量，如果想访问外部的同名变量，需要使用作用域声明，`::val`表示向全局作用域发出请求
+
+#### 3. struct
+1. struct和class唯一区别就是struct默认访问权限是public。
+2. 一般用struct可以使用 {初始值列表} 进行初始化，需满足：  
+2.1 所有成员都是public的  
+2.2 没有任何构造函数  
+2.3 没有类内初始值  
+2.4 没有基类，没有虚函数  
+这样的类叫聚合类。
+
+
+## n. g++编译的四个过程
+-Wall  使能所有警告  
+-O0    关闭所有优化选项  
+-O3    这是最高最危险的优化等级
+
+## n. gdb调试
+#### 1. 流程
+1. 编译时加入-g指令
+```
+$ gcc gdb-sample.c -o gdb-sample -g
+```
+2. 使用gdb指令，进入调试
+```
+$ gdb
+```
+3. 使用file指令加载可执行文件
+```
+(gdb) file gdb-sample
+Reading symbols from gdb-sample...done.
+```
+4. 使用b设断点，s下一步，r运行
+```
+(gdb) b main
+Breakpoint 1 at 0x804835c: file gdb-sample.c, line 19.
+(gdb) r
+Starting program: /home/liigo/temp/gdb-sample
+Breakpoint 1, main () at gdb-sample.c:19
+19 n = 1;
+(gdb) s
+20 n++;
+```
+
+#### 2. [常用命令](https://blog.csdn.net/liigo/article/details/582231/)
+
+命令 | 解释 | 示例 |
+|:-----:|:-----:|:-----:|
+file <文件名>|加载被调试的可执行程序文件。<br/>因为一般都在被调试程序所在目录下执行GDB，因而文本名不需要带路径。|(gdb) file gdb-sample
+r | Run的简写，运行被调试的程序。<br/>如果此前没有下过断点，则执行完整个程序；如果有断点，则程序暂停在第一个可用断点处。 | (gdb) r
+c | Continue的简写，继续执行被调试程序，直至下一个断点或程序结束。| (gdb) c
+b <行号><br/>b <函数名称><br/>b *<函数名称><br/>b *<代码地址><br/>d [编号] | b: Breakpoint的简写，设置断点。两可以使用“行号”“函数名称”“执行地址”等方式指定断点位置。<br/>其中在函数名称前面加“*”符号表示将断点设置在“由编译器生成的prolog代码处”。如果不了解汇编，可以不予理会此用法。<br/>d: Delete breakpoint的简写，删除指定编号的某个断点，或删除所有断点。断点编号从1开始递增。 | (gdb) b 8 <br/> (gdb) b main <br/> (gdb) b *main <br/> (gdb) b *0x804835c <br/> (gdb) d
+s, n |  s: 执行一行源程序代码，如果此行代码中有函数调用，则进入该函数； <br/> n: 执行一行源程序代码，此行代码中的函数调用也一并执行。 <br/> s 相当于其它调试器中的“Step Into (单步跟踪进入)”； <br/> n 相当于其它调试器中的“Step Over (单步跟踪)”。 <br/> 这两个命令必须在有源代码调试信息的情况下才可以使用（GCC编译时使用“-g”参数）。 | (gdb) s <br/> (gdb) n
+si, ni | si命令类似于s命令，ni命令类似于n命令。所不同的是，这两个命令（si/ni）所针对的是汇编指令，而s/n针对的是源代码。 | (gdb) si <br/> (gdb) ni
+p <变量名称> | Print的简写，显示指定变量（临时变量或全局变量）的值。 | (gdb) p i <br/> (gdb) p nGlobalVar
+display ... <br/> undisplay <编号> | display，设置程序中断后欲显示的数据及其格式。 <br/> 例如，如果希望每次程序中断后可以看到即将被执行的下一条汇编指令，可以使用命令“display /i $pc” <br/> 其中 $pc 代表当前汇编指令，/i 表示以十六进行显示。当需要关心汇编代码时，此命令相当有用。 <br/> undispaly，取消先前的display设置，编号从1开始递增。 | (gdb) display /i $pc <br/> (gdb) undisplay 1
+i | Info的简写，用于显示各类信息，详情请查阅“help i”。 | (gdb) i r
+q | Quit的简写，退出GDB调试环境。 | (gdb) q
+help [命令名称] | GDB帮助命令，提供对GDB名种命令的解释说明。 <br/> 如果指定了“命令名称”参数，则显示该命令的详细说明；如果没有指定参数，则分类显示所有GDB命令，供用户进一步浏览和查询。 | (gdb) help display
+
+3. 其他
+```
+awatch -- Set a watchpoint for an expression
+break -- Set breakpoint at specified location
+break-range -- Set a breakpoint for an address range
+catch -- Set catchpoints to catch events
+catch assert -- Catch failed Ada assertions
+catch catch -- Catch an exception
+catch exception -- Catch Ada exceptions
+catch exec -- Catch calls to exec
+catch fork -- Catch calls to fork
+catch load -- Catch loads of shared libraries
+catch rethrow -- Catch an exception
+catch signal -- Catch signals by their names and/or numbers
+catch syscall -- Catch system calls by their names and/or numbers
+catch throw -- Catch an exception
+catch unload -- Catch unloads of shared libraries
+catch vfork -- Catch calls to vfork
+clear -- Clear breakpoint at specified location
+commands -- Set commands to be executed when a breakpoint is hit
+condition -- Specify breakpoint number N to break only if COND is true
+delete -- Delete some breakpoints or auto-display expressions
+delete bookmark -- Delete a bookmark from the bookmark list
+delete breakpoints -- Delete some breakpoints or auto-display expressions
+delete checkpoint -- Delete a checkpoint (experimental)
+delete display -- Cancel some expressions to be displayed when program stops
+delete mem -- Delete memory region
+delete tracepoints -- Delete specified tracepoints
+delete tvariable -- Delete one or more trace state variables
+disable -- Disable some breakpoints
+disable breakpoints -- Disable some breakpoints
+disable display -- Disable some expressions to be displayed when program stops
+disable frame-filter -- GDB command to disable the specified frame-filter
+disable mem -- Disable memory region
+disable pretty-printer -- GDB command to disable the specified pretty-printer
+disable probes -- Disable probes
+disable tracepoints -- Disable specified tracepoints
+disable type-printer -- GDB command to disable the specified type-printer
+disable unwinder -- GDB command to disable the specified unwinder
+disable xmethod -- GDB command to disable a specified (group of) xmethod(s)
+dprintf -- Set a dynamic printf at specified location
+enable -- Enable some breakpoints
+enable breakpoints -- Enable some breakpoints
+enable breakpoints count -- Enable breakpoints for COUNT hits
+enable breakpoints delete -- Enable breakpoints and delete when hit
+enable breakpoints once -- Enable breakpoints for one hit
+```
+## n. cmakelists
+1. add_executable()  
+`add_executable(demo main.cpp main.h main.rc)`  
+指定可执行文件，demo是可执行文件名，后面是源文件  
+2. ADD_LIBRARY()  
+ADD_LIBRARY(libname [SHARED | STATIC | MODULE] [EXCLUDE_FROM_ALL]              source1 source2 ... sourceN)  
+指定生成的库  
+3. INCLUDE()  
+`INCLUDE(FindBoost)`  
+指定包含的文件  
+4. SET()  
+`SET(MY_SOURCES main.cpp widget.cpp)`  
+设置环境变量  
+5. MESSAGE()  
+`MESSAGE(STATUS "正在创建项目文件")`   
+遇到这条指令,会把文字显示在状态栏里面(一闪而过，不容易发现)。  
+`MESSAGE(FATAL_ERROR "严重错误")`  
+这条指令会提示出错，并退出。  
+6. IF()判断  
+```
+IF (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+ SET(option WIN32)
+ SET(win32_LIBRARIES comctl32.lib shlwapi.lib shell32.lib odbc32.lib odbccp32.lib  kernel32.lib user32.lib gdi32.lib winspool.lib comdlg32.lib advapi32.lib shell32.lib ole32.lib oleaut32.lib uuid.lib odbc32.lib odbccp32.lib)
+ #SET(defs -DUNICODE -D_UNICODE)
+ENDIF (${CMAKE_SYSTEM_NAME} STREQUAL "Windows")
+```
+7. INCLUDE_DIRECTORIES()  
+`INCLUDE_DIRECTORIES([AFTER|BEFORE] [SYSTEM] dir1 dir2 ...)`  
+添加查找头文件的路径  
+8. LINK_DIRECTORIES()  
+`LINK_DIRECTORIES(directory1 directory2 ...)`  
+添加库文件的搜索路径  
+9. TARGET_LINK_LIBRARIES()  
+`TARGET_LINK_LIBRARIES(target library1 <debug | optimized> library2 ...)`  
+显式指定链接时需要的库文件  
+10. ADD_DEFINITIONS()  
+`ADD_DEFINITIONS(-DDEBUG) `  
+显式实施宏定义  
+```
+cmake_minimum_required(VERSION 3.4.1)
+
+### libgameplay
+#头文件路径
+include_directories( 
+src_gameplay/src
+src_gameplay/external-deps/include
+)
+
+link_directories(
+src_gameplay/external-deps/lib
+)
+
+file(GLOB gameplay_src "src_gameplay/src/*.cpp") #声明字符串变量，此处字符串为源文件路径
+file(GLOB gameplay_lua "src_gameplay/src/lua/*.cpp")
+file(GLOB homura_src "src_gameplay/homura/*.cpp")
+
+add_library( # Sets the name of the library.
+             gameplay
+             # Sets the library as a shared library.
+             SHARED
+             # Provides a relative path to your source file(s).
+             # Associated headers in the same location as their source
+             # file are automatically included.
+             ${gameplay_src}
+             ${gameplay_lua}
+             ${homura_src} )
+
+set_target_properties( gameplay PROPERTIES IMPORTED_LOCATION libs/${ANDROID_ABI}/libgameplay.so )
+set(CMAKE_CXX_FLAGS "-Os -std=c++11 -frtti -Wno-switch-enum -Wno-switch -Wno-error=non-virtual-dtor -D__ANDROID__")
+
+target_link_libraries( # Specifies the target library.
+                       gameplay
+                       # Denpendences
+                       gameplay-deps
+                       log
+                       android
+                       EGL
+                       GLESv2
+                       OpenSLES )
+
+##########################################################################################
+
+### libgameplay_jni
+file(GLOB gameplay_jni "jni/game_jni/*.cpp")
+add_library( # Sets the name of the library.
+             gameplay_jni
+             # Sets the library as a shared library.
+             SHARED
+             # Provides a relative path to your source file(s).
+             # Associated headers in the same location as their source
+             # file are automatically included.
+             ${gameplay_jni} )
+
+set_target_properties( gameplay_jni PROPERTIES IMPORTED_LOCATION libs/${ANDROID_ABI}/libgameplay_jni.so )
+set(CMAKE_CXX_FLAGS "-Os -std=c++11 -frtti -Wno-switch-enum -Wno-switch -Wno-error=non-virtual-dtor -D__ANDROID__")
+
+target_link_libraries( # Specifies the target library.
+                       gameplay_jni
+                       # Denpendences
+                       gameplay
+                       log
+                       android )
+```
+11. install()  
+[安装文件](https://blog.csdn.net/yangfeng2014/article/details/50638601)
+```
+INSTALL(TARGETS targets...
+        [[ARCHIVE|LIBRARY|RUNTIME]
+                   [DESTINATION <dir>]
+                   [PERMISSIONS permissions...]
+                   [CONFIGURATIONS
+        [Debug|Release|...]]
+                   [COMPONENT <component>]
+                   [OPTIONAL]
+                ] [...])
+
+```
+例
+```
+########安装脚本##########
+# 将生成的target安装到指定目录下，这里 detect_cl,img_tool是动态库,test_detect是可执行程序,
+# cmake会自动根据target的类型将可执行程序(如.exe)和动态库(如.dll)作为RUNTIME类型复制到bin下,
+# 将动态库的导入库(.lib .a)作为ARCHIVE类型复制lib/static目录下
+install(TARGETS detect_cl img_tool test_detect 
+        RUNTIME DESTINATION bin
+        LIBRARY DESTINATION lib
+        ARCHIVE DESTINATION lib/static)
+# 复制源码中的指定的头文件到 include下
+install(FILES ${PROJECT_SOURCE_DIR}/facedetect/detect_cl_types.h DESTINATION include)
+install(FILES ${PROJECT_SOURCE_DIR}/facedetect/detect_cl.h DESTINATION include)
+install(FILES ${PROJECT_SOURCE_DIR}/facedetect/img_tool.h DESTINATION include)
+# 复制sample代码到 sample下
+install(FILES ${PROJECT_SOURCE_DIR}/facedetect/test_detect.cpp DESTINATION sample)
+install(FILES ${PROJECT_SOURCE_DIR}/../codemgr/cmimpl/utility.h DESTINATION sample)
+```
+
+
+## N. 设计模式
